@@ -24,14 +24,12 @@ def keep_alive():
 # ── Bot Configuration ──
 TOKEN = os.getenv("DISCORD_TOKEN")
 
-# Sirf ye 3 Users bot use kar sakte hain
 ALLOWED_USER_IDS = [
     1525179499602509977,  # Main Admin (PERSISTX)
     1306569043402031116,
     1421363542912929852
 ]
 
-# Dashboard se confirmed Gateway Endpoint & Credentials
 API_URL    = "https://prtvshow.online/api_admin.php"
 API_KEY    = "TX999_API_0cd981c565dcd81963149ffe8f72b322"
 APP_ID     = "9f087d585fbd666572fc24b7"
@@ -48,21 +46,19 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 def is_authorized(interaction: discord.Interaction) -> bool:
     return interaction.user.id in ALLOWED_USER_IDS
 
-# ── Duplicate Command Remover & Sync ──
+# ── Bulletproof Sync (Commands gayab hone se rokne ke liye) ──
 @bot.event
 async def on_ready():
     print(f"Logged in as {bot.user.name} (ID: {bot.user.id})")
     try:
-        # 1. Global duplicate commands remove karein
-        bot.tree.clear_commands(guild=None)
-        await bot.tree.sync(guild=None)
-
-        # 2. Server commands clear karke single copy sync karein
+        # Har server me direct force sync
         for guild in bot.guilds:
-            bot.tree.clear_commands(guild=guild)
-            bot.tree.copy_global_to(guild=guild)
             synced = await bot.tree.sync(guild=guild)
-            print(f"Cleaned & synced {len(synced)} commands to server: {guild.name}")
+            print(f"Force-synced {len(synced)} commands to guild: {guild.name}")
+        
+        # Global fallback sync
+        synced_global = await bot.tree.sync()
+        print(f"Global sync complete: {len(synced_global)} commands active.")
     except Exception as e:
         print(f"Sync error: {e}")
 
@@ -78,7 +74,7 @@ def request_key_action(action: str, key: str):
     resp = requests.post(API_URL, json=payload, timeout=10)
     return resp.json()
 
-# ── Key Action Buttons ──
+# ── Persistent Buttons View ──
 class KeyManagementView(discord.ui.View):
     def __init__(self, key: str):
         super().__init__(timeout=None)
@@ -132,9 +128,9 @@ class KeyManagementView(discord.ui.View):
         else:
             await interaction.followup.send(f"❌ Failed: {res.get('message', 'Unknown error')}", ephemeral=True)
 
-# ── 1. Key Generation Command ──
+# ── 1. License Key Generation Command (/genuid) ──
 @bot.tree.command(name="genuid", description="Generate UID Bypass license keys.")
-@app_commands.describe(days="Validity days (0 = lifetime)", count="Number of keys (max 100)")
+@app_commands.describe(days="Number of validity days (0 = lifetime)", count="Number of keys (max 100)")
 async def genuid(interaction: discord.Interaction, days: int = 30, count: int = 1):
     if not is_authorized(interaction):
         await interaction.response.send_message(DENIED_MESSAGE, ephemeral=True)
@@ -203,9 +199,9 @@ async def genuid(interaction: discord.Interaction, days: int = 30, count: int = 
 @app_commands.describe(
     uid="Player Free Fire UID",
     region="Select game server region",
-    nickname="Player nickname (optional)",
+    nickname="Player in-game nickname (optional)",
     days="Whitelist duration (0 = Lifetime)",
-    note="Buyer note"
+    note="Buyer reference or note"
 )
 async def whitelist_uid(
     interaction: discord.Interaction,
@@ -244,7 +240,7 @@ async def whitelist_uid(
             embed.add_field(name="Note", value=note, inline=True)
             await interaction.followup.send(embed=embed)
         else:
-            await interaction.followup.send(f"❌ Failed: {data.get('message', 'API Error')}", ephemeral=True)
+            await interaction.followup.send(f"❌ Failed to Whitelist: {data.get('message', 'API returned error')}", ephemeral=True)
     except Exception as e:
         await interaction.followup.send(f"⚠️ Error: {str(e)}", ephemeral=True)
 
@@ -275,7 +271,7 @@ async def del_uid(interaction: discord.Interaction, uid: str):
         await interaction.followup.send(f"⚠️ Error: {str(e)}", ephemeral=True)
 
 # ── 4. Standalone Key Actions ──
-@bot.tree.command(name="resethwid", description="Reset HWID for a license key.")
+@bot.tree.command(name="resethwid", description="Reset HWID for a specific license key.")
 async def resethwid(interaction: discord.Interaction, key: str):
     if not is_authorized(interaction):
         await interaction.response.send_message(DENIED_MESSAGE, ephemeral=True)
@@ -287,7 +283,7 @@ async def resethwid(interaction: discord.Interaction, key: str):
     else:
         await interaction.followup.send(f"❌ Failed: {res.get('message')}", ephemeral=True)
 
-@bot.tree.command(name="bankey", description="Ban a license key.")
+@bot.tree.command(name="bankey", description="Ban a specific license key.")
 async def bankey(interaction: discord.Interaction, key: str):
     if not is_authorized(interaction):
         await interaction.response.send_message(DENIED_MESSAGE, ephemeral=True)
@@ -299,7 +295,7 @@ async def bankey(interaction: discord.Interaction, key: str):
     else:
         await interaction.followup.send(f"❌ Failed: {res.get('message')}", ephemeral=True)
 
-@bot.tree.command(name="unbankey", description="Unban a license key.")
+@bot.tree.command(name="unbankey", description="Unban a previously banned license key.")
 async def unbankey(interaction: discord.Interaction, key: str):
     if not is_authorized(interaction):
         await interaction.response.send_message(DENIED_MESSAGE, ephemeral=True)
@@ -311,7 +307,7 @@ async def unbankey(interaction: discord.Interaction, key: str):
     else:
         await interaction.followup.send(f"❌ Failed: {res.get('message')}", ephemeral=True)
 
-@bot.tree.command(name="delkey", description="Delete a license key.")
+@bot.tree.command(name="delkey", description="Permanently delete a license key from the database.")
 async def delkey(interaction: discord.Interaction, key: str):
     if not is_authorized(interaction):
         await interaction.response.send_message(DENIED_MESSAGE, ephemeral=True)
