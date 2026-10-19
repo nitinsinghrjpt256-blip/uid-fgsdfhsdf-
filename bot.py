@@ -22,10 +22,9 @@ def keep_alive():
     t.start()
 
 # ── Bot Configuration ──
-TOKEN      = os.getenv("DISCORD_TOKEN")
-TARGET_GUILD_ID = 1542552047768047687
+TOKEN = os.getenv("DISCORD_TOKEN")
 
-# Allowed Users: Main Admin + 2 Authorized IDs
+# Sirf ye 3 Users bot use kar payenge
 ALLOWED_USER_IDS = [
     1525179499602509977,  # Main Admin (PERSISTX)
     1306569043402031116,
@@ -46,30 +45,26 @@ DENIED_MESSAGE = "⛔ Access Denied: For use contact Super Admin PERSISTX !"
 intents = discord.Intents.default()
 bot = commands.Bot(command_prefix="!", intents=intents)
 
-# ── Security Check Function ──
+# ── Only User Security Check (Channel / Server Check Removed) ──
 def is_authorized(interaction: discord.Interaction) -> bool:
-    if interaction.guild_id != TARGET_GUILD_ID:
-        return False
     if interaction.user.id not in ALLOWED_USER_IDS:
         return False
     return True
 
-# ── Auto Clear & Sync Commands (Target Guild Only) ──
+# ── Auto Sync Commands Globally & All Joined Guilds ──
 @bot.event
 async def on_ready():
     print(f"Logged in as {bot.user.name} (ID: {bot.user.id})")
     try:
-        guild = discord.Object(id=TARGET_GUILD_ID)
+        # Har server par commands instant sync hongi
+        for guild in bot.guilds:
+            bot.tree.copy_global_to(guild=guild)
+            synced = await bot.tree.sync(guild=guild)
+            print(f"Synced {len(synced)} commands to server: {guild.name} ({guild.id})")
         
-        # Global commands clear taaki doosre servers me slash commands na dikhein
-        bot.tree.clear_commands(guild=None)
-        await bot.tree.sync(guild=None)
-        
-        # Target server par clear & fresh sync
-        bot.tree.clear_commands(guild=guild)
-        bot.tree.copy_global_to(guild=guild)
-        synced = await bot.tree.sync(guild=guild)
-        print(f"Synced {len(synced)} commands strictly to Guild ID: {TARGET_GUILD_ID}")
+        # Global sync fallback
+        await bot.tree.sync()
+        print("Global command sync completed!")
     except Exception as e:
         print(f"Failed to sync commands: {e}")
 
