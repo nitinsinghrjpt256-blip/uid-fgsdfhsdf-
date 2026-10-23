@@ -30,12 +30,13 @@ ALLOWED_USER_IDS = [
     1421363542912929852
 ]
 
-API_URL    = "https://prtvshow.online/api_admin.php"
-API_KEY    = "TX999_API_0cd981c565dcd81963149ffe8f72b322"
-APP_ID     = "9f087d585fbd666572fc24b7"
-APP_SECRET = "4ac5c8b945cbf8c75e15d771704616356c15edc051cbad6c12c92376da1dced7"
+API_URL = "https://prtvshow.online/api_admin.php"
+API_KEY = os.getenv("API_KEY", "TX999_API_f93f45ad4db0b3a636671d7b604197c9")
 
-PACKAGE_ID   = "cb921031dc43197e8ccb6828"
+# Agar aapke key management ya generation me app credentials lagte hain:
+APP_ID = os.getenv("APP_ID", "9f087d585fbd666572fc24b7")
+APP_SECRET = os.getenv("APP_SECRET", "4ac5c8b945cbf8c75e15d771704616356c15edc051cbad6c12c92376da1dced7")
+PACKAGE_ID = os.getenv("PACKAGE_ID", "cb921031dc43197e8ccb6828")
 PACKAGE_NAME = "UID BYPASS"
 
 DENIED_MESSAGE = "⛔ Access Denied: For use contact Super Admin PERSISTX !"
@@ -46,35 +47,32 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 def is_authorized(interaction: discord.Interaction) -> bool:
     return interaction.user.id in ALLOWED_USER_IDS
 
-# ── Bulletproof Sync (Commands gayab hone se rokne ke liye) ──
+# ── Bot Ready & Command Sync ──
 @bot.event
 async def on_ready():
     print(f"Logged in as {bot.user.name} (ID: {bot.user.id})")
     try:
-        # Har server me direct force sync
-        for guild in bot.guilds:
-            synced = await bot.tree.sync(guild=guild)
-            print(f"Force-synced {len(synced)} commands to guild: {guild.name}")
-        
-        # Global fallback sync
-        synced_global = await bot.tree.sync()
-        print(f"Global sync complete: {len(synced_global)} commands active.")
+        synced = await bot.tree.sync()
+        print(f"Global sync complete: {len(synced)} slash commands active.")
     except Exception as e:
         print(f"Sync error: {e}")
 
-# ── Key Action Helper ──
+# ── Helper for Key Actions (GET Query Parameters) ──
 def request_key_action(action: str, key: str):
-    payload = {
-        "api_key": API_KEY,
+    params = {
         "action": action,
+        "api_key": API_KEY,
         "key": key.strip(),
         "app_id": APP_ID,
         "app_secret": APP_SECRET
     }
-    resp = requests.post(API_URL, json=payload, timeout=10)
-    return resp.json()
+    try:
+        resp = requests.get(API_URL, params=params, timeout=10)
+        return resp.json()
+    except Exception as e:
+        return {"success": False, "message": str(e)}
 
-# ── Persistent Buttons View ──
+# ── Persistent Buttons View for Keys ──
 class KeyManagementView(discord.ui.View):
     def __init__(self, key: str):
         super().__init__(timeout=None)
@@ -87,7 +85,7 @@ class KeyManagementView(discord.ui.View):
             return
         await interaction.response.defer(ephemeral=True)
         res = request_key_action("reset_hwid", self.key)
-        if res.get("success"):
+        if res.get("success") or res.get("status") == "success":
             await interaction.followup.send(f"✓ **HWID Reset Done** for key: `{self.key}`", ephemeral=True)
         else:
             await interaction.followup.send(f"❌ Failed: {res.get('message', 'Unknown error')}", ephemeral=True)
@@ -99,7 +97,7 @@ class KeyManagementView(discord.ui.View):
             return
         await interaction.response.defer(ephemeral=True)
         res = request_key_action("ban_key", self.key)
-        if res.get("success"):
+        if res.get("success") or res.get("status") == "success":
             await interaction.followup.send(f"🚫 **Key Banned**: `{self.key}`", ephemeral=True)
         else:
             await interaction.followup.send(f"❌ Failed: {res.get('message', 'Unknown error')}", ephemeral=True)
@@ -111,7 +109,7 @@ class KeyManagementView(discord.ui.View):
             return
         await interaction.response.defer(ephemeral=True)
         res = request_key_action("unban_key", self.key)
-        if res.get("success"):
+        if res.get("success") or res.get("status") == "success":
             await interaction.followup.send(f"✅ **Key Unbanned**: `{self.key}`", ephemeral=True)
         else:
             await interaction.followup.send(f"❌ Failed: {res.get('message', 'Unknown error')}", ephemeral=True)
@@ -123,7 +121,7 @@ class KeyManagementView(discord.ui.View):
             return
         await interaction.response.defer(ephemeral=True)
         res = request_key_action("delete_key", self.key)
-        if res.get("success"):
+        if res.get("success") or res.get("status") == "success":
             await interaction.followup.send(f"🗑️ **Key Deleted**: `{self.key}`", ephemeral=True)
         else:
             await interaction.followup.send(f"❌ Failed: {res.get('message', 'Unknown error')}", ephemeral=True)
@@ -140,9 +138,9 @@ async def genuid(interaction: discord.Interaction, days: int = 30, count: int = 
     if count < 1:
         count = 1
 
-    payload = {
-        "api_key": API_KEY,
+    params = {
         "action": "generate_key",
+        "api_key": API_KEY,
         "app_id": APP_ID,
         "app_secret": APP_SECRET,
         "package_id": PACKAGE_ID,
@@ -152,7 +150,7 @@ async def genuid(interaction: discord.Interaction, days: int = 30, count: int = 
     }
 
     try:
-        resp = requests.post(API_URL, json=payload, timeout=10)
+        resp = requests.get(API_URL, params=params, timeout=10)
         data = resp.json()
 
         keys = []
@@ -165,7 +163,7 @@ async def genuid(interaction: discord.Interaction, days: int = 30, count: int = 
 
         if data.get("success") or len(keys) > 0:
             if len(keys) == 0:
-                await interaction.followup.send(f"❌ Key generation failed: {data.get('message')}", ephemeral=True)
+                await interaction.followup.send(f"❌ Key generation failed: {data.get('message', 'No key returned')}", ephemeral=True)
                 return
 
             dur = "Lifetime" if days == 0 else f"{days} Days"
@@ -185,8 +183,8 @@ async def genuid(interaction: discord.Interaction, days: int = 30, count: int = 
     except Exception as e:
         await interaction.followup.send(f"⚠️ Error: {str(e)}", ephemeral=True)
 
-# ── 2. UID Whitelist Command ──
-@bot.tree.command(name="whitelist_uid", description="Whitelist a Free Fire UID on Emulator Bypass.")
+# ── 2. UID Whitelist Command (/whitelist_uid) ──
+@bot.tree.command(name="whitelist_uid", description="Whitelist a Player UID on Emulator Bypass.")
 @app_commands.choices(region=[
     app_commands.Choice(name="IN - India", value="IND"),
     app_commands.Choice(name="BD - Bangladesh", value="BD"),
@@ -199,52 +197,46 @@ async def genuid(interaction: discord.Interaction, days: int = 30, count: int = 
 @app_commands.describe(
     uid="Player Free Fire UID",
     region="Select game server region",
-    nickname="Player in-game nickname (optional)",
-    days="Whitelist duration (0 = Lifetime)",
-    note="Buyer reference or note"
+    days="Whitelist duration (0 = Lifetime, Default = 30)"
 )
 async def whitelist_uid(
     interaction: discord.Interaction,
     uid: str,
     region: app_commands.Choice[str],
-    days: int = 30,
-    nickname: str = "Player",
-    note: str = "Discord Whitelist"
+    days: int = 30
 ):
     if not is_authorized(interaction):
         await interaction.response.send_message(DENIED_MESSAGE, ephemeral=True)
         return
 
     await interaction.response.defer(ephemeral=False)
-    payload = {
-        "api_key": API_KEY,
+
+    params = {
         "action": "whitelist_uid",
-        "app_id": APP_ID,
-        "app_secret": APP_SECRET,
+        "api_key": API_KEY,
         "uid": uid.strip(),
         "region": region.value,
-        "nickname": nickname.strip(),
-        "days": days,
-        "note": note
+        "days": days
     }
+
     try:
-        resp = requests.post(API_URL, json=payload, timeout=10)
+        resp = requests.get(API_URL, params=params, timeout=10)
         data = resp.json()
-        if data.get("success"):
+
+        if data.get("success") or data.get("status") == "success":
             dur = "Lifetime" if days == 0 else f"{days} Days"
             embed = discord.Embed(title="✅ UID Whitelisted Successfully", color=0x22c55e)
             embed.add_field(name="Free Fire UID", value=f"`{uid.strip()}`", inline=True)
-            embed.add_field(name="Nickname", value=f"**{nickname}**", inline=True)
             embed.add_field(name="Region", value=f"{region.name}", inline=True)
             embed.add_field(name="Duration", value=dur, inline=True)
-            embed.add_field(name="Note", value=note, inline=True)
             await interaction.followup.send(embed=embed)
         else:
-            await interaction.followup.send(f"❌ Failed to Whitelist: {data.get('message', 'API returned error')}", ephemeral=True)
+            msg = data.get("message", "API returned an error or UID already exists.")
+            await interaction.followup.send(f"❌ Failed to Whitelist: {msg}", ephemeral=True)
     except Exception as e:
         await interaction.followup.send(f"⚠️ Error: {str(e)}", ephemeral=True)
 
-# ── 3. UID Whitelist Delete Command ──
+# ── 3. UID Whitelist Delete Command (/del_uid) ──
 @bot.tree.command(name="del_uid", description="Remove a UID from whitelist.")
 @app_commands.describe(uid="Free Fire UID to remove")
 async def del_uid(interaction: discord.Interaction, uid: str):
@@ -253,20 +245,21 @@ async def del_uid(interaction: discord.Interaction, uid: str):
         return
 
     await interaction.response.defer(ephemeral=True)
+    params = {
+        "action": "remove_uid",
+        "api_key": API_KEY,
+        "uid": uid.strip()
+    }
+
     try:
-        payload = {
-            "api_key": API_KEY,
-            "action": "delete_uid",
-            "app_id": APP_ID,
-            "app_secret": APP_SECRET,
-            "uid": uid.strip()
-        }
-        resp = requests.post(API_URL, json=payload, timeout=10)
+        resp = requests.get(API_URL, params=params, timeout=10)
         data = resp.json()
-        if data.get("success"):
+
+        if data.get("success") or data.get("status") == "success":
             await interaction.followup.send(f"🗑️ UID `{uid.strip()}` has been removed from whitelist.", ephemeral=True)
         else:
-            await interaction.followup.send(f"❌ Failed: {data.get('message', 'Action failed')}", ephemeral=True)
+            msg = data.get("message", "Action failed or UID not found.")
+            await interaction.followup.send(f"❌ Failed: {msg}", ephemeral=True)
     except Exception as e:
         await interaction.followup.send(f"⚠️ Error: {str(e)}", ephemeral=True)
 
@@ -278,10 +271,10 @@ async def resethwid(interaction: discord.Interaction, key: str):
         return
     await interaction.response.defer(ephemeral=True)
     res = request_key_action("reset_hwid", key)
-    if res.get("success"):
+    if res.get("success") or res.get("status") == "success":
         await interaction.followup.send(f"🔄 **HWID Reset Done**: `{key.strip()}`", ephemeral=True)
     else:
-        await interaction.followup.send(f"❌ Failed: {res.get('message')}", ephemeral=True)
+        await interaction.followup.send(f"❌ Failed: {res.get('message', 'Action failed')}", ephemeral=True)
 
 @bot.tree.command(name="bankey", description="Ban a specific license key.")
 async def bankey(interaction: discord.Interaction, key: str):
@@ -290,10 +283,10 @@ async def bankey(interaction: discord.Interaction, key: str):
         return
     await interaction.response.defer(ephemeral=True)
     res = request_key_action("ban_key", key)
-    if res.get("success"):
+    if res.get("success") or res.get("status") == "success":
         await interaction.followup.send(f"🚫 **Key Banned**: `{key.strip()}`", ephemeral=True)
     else:
-        await interaction.followup.send(f"❌ Failed: {res.get('message')}", ephemeral=True)
+        await interaction.followup.send(f"❌ Failed: {res.get('message', 'Action failed')}", ephemeral=True)
 
 @bot.tree.command(name="unbankey", description="Unban a previously banned license key.")
 async def unbankey(interaction: discord.Interaction, key: str):
@@ -302,10 +295,10 @@ async def unbankey(interaction: discord.Interaction, key: str):
         return
     await interaction.response.defer(ephemeral=True)
     res = request_key_action("unban_key", key)
-    if res.get("success"):
+    if res.get("success") or res.get("status") == "success":
         await interaction.followup.send(f"✅ **Key Unbanned**: `{key.strip()}`", ephemeral=True)
     else:
-        await interaction.followup.send(f"❌ Failed: {res.get('message')}", ephemeral=True)
+        await interaction.followup.send(f"❌ Failed: {res.get('message', 'Action failed')}", ephemeral=True)
 
 @bot.tree.command(name="delkey", description="Permanently delete a license key from the database.")
 async def delkey(interaction: discord.Interaction, key: str):
@@ -314,10 +307,10 @@ async def delkey(interaction: discord.Interaction, key: str):
         return
     await interaction.response.defer(ephemeral=True)
     res = request_key_action("delete_key", key)
-    if res.get("success"):
+    if res.get("success") or res.get("status") == "success":
         await interaction.followup.send(f"🗑️ **Key Deleted**: `{key.strip()}`", ephemeral=True)
     else:
-        await interaction.followup.send(f"❌ Failed: {res.get('message')}", ephemeral=True)
+        await interaction.followup.send(f"❌ Failed: {res.get('message', 'Action failed')}", ephemeral=True)
 
 keep_alive()
 
